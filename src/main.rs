@@ -1,4 +1,6 @@
 use clap::Parser;
+use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -7,7 +9,12 @@ struct Args {
     values: String,
 }
 
-fn main() {
+#[derive(Deserialize, Debug)]
+struct Values(HashMap<String, String>);
+
+fn main() -> std::io::Result<()> {
     let args = Args::parse();
-    println!("args: {args:?}");
+    let values: Values = serde_json::from_reader(std::fs::File::open(args.values)?).unwrap();
+    println!("values: {values:?}");
+    Ok(())
 }
