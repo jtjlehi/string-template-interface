@@ -1,3 +1,4 @@
+workspace = { members = ["language"] }
 [package]
 name = "string_template_interface"
 version = "0.1.0"
