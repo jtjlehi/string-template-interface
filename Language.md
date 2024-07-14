@@ -5,11 +5,7 @@
 OPEN        ::= `%{`
 CLOSE       ::= `}`
 ESCAPED_PER ::= `%%`
-TEXT_STR    ::= <ESCAPED_PER>
-            |   .
-VAR         ::= <lower_char> (<char> | <number> | `_` | `-`)*
-            |   `_` (<char> | <number> | `_` | `_`)+
-            |   <ESCAPE_VAR>
+TEXT_STR    ::= (<ESCAPED_PER> | .)*
 COLON       ::= `:`
 FN_ARROW    ::= `->`
 ASSIGN_OP   ::= `=`
@@ -26,12 +22,17 @@ WHITE_SPACE
 
 BODY            ::= <FUNCTION>
                 |   <TEXT>
-TEXT            ::= <TEXT_STR>* (<INSERT> | <TEXT_STR>)*
+TEXT            ::= <TEXT_STR> (<INSERT> | <TEXT_STR>)*
 INSERT          ::= <OPEN> <VALUE> <CLOSE>
 FUNCTION        ::= <OPEN_CURLY> (<DECL> <COMMA>)* <DECL>? <CLOSE_CURLY> <FN_ARROW> <NEWLINE>? <BODY>
                 |   <DECL> <BODY>
 DECL            ::= <VAR>
-                |   <VAR> <ASSIGN_OP> <FUNCTION>
+                |   <VAR> <ASSIGN_OP> <FN_VALUE>
+FN_VALUE        ::= <VAR>
+                |   <FUNCTION>
+VAR             ::= <lower_char> (<char> | <number> | `_` | `-`)*
+                |   `_` (<char> | <number> | `_` | `_`)+
+                |   <ESCAPE_VAR>
 VALUE           ::= <VAR>
                 |   <ACCESS>
                 |   <FN_CALL>
