@@ -44,13 +44,14 @@ enum Value {
 pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let var = just('_').to(Var::Ignore).or(text::ident().map(Var::Ident));
 
-    let decl = var.clone().map(Decl::Var);
+    let decl = var.clone().map(Decl::Var).padded();
     let decls = decl
         .clone()
         .then_ignore(just(','))
         .repeated()
         .chain(decl.or_not())
-        .delimited_by(just('{'), just('}'));
+        .delimited_by(just('{').padded(), just('}').padded())
+        .padded();
 
     let value = var.map(Value::Var);
     let insert = value.delimited_by(just("%{"), just("}")).map(Insert);
@@ -91,6 +92,14 @@ mod tests {
     macro_rules! ident {
         ($str:expr) => {
             Ident($str.to_string())
+        };
+    }
+    macro_rules! decls {
+        ($($decl:expr),*) => {
+            Body::Function {
+                decls: vec![$(Decl::Var(ident!($decl))),*],
+                template: template![text!("foo")],
+            }
         };
     }
     macro_rules! test_pass {
@@ -137,5 +146,25 @@ mod tests {
             decls: vec![],
             template: template![Insert(Value::Var(ident!("foo")))],
         }
+    );
+    test_pass!(single_decl_passes, "{foo}->\nfoo", decls!["foo"]);
+    test_pass!(single_decl_passes1, "{foo,}->\nfoo", decls!["foo"]);
+    test_pass!(
+        multi_decl_passes,
+        "{foo,bar,baz}->\nfoo",
+        decls!["foo", "bar", "baz"]
+    );
+    test_pass!(
+        multi_decl_passes1,
+        "{foo,bar,baz,}->\nfoo",
+        decls!["foo", "bar", "baz"]
+    );
+    test_pass!(white_space_pass, "{} \n  \t->\nfoo", decls![]);
+    test_pass!(white_space_pass1, "{  }->foo", decls![]);
+    test_pass!(white_space_pass2, "\n\n\t  \n  {}->foo", decls![]);
+    test_pass!(
+        white_space_pass3,
+        "\n\n\t  \n  {  foo, \n\nbar, }  ->foo",
+        decls!["foo", "bar"]
     );
 }
