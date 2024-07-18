@@ -5,39 +5,62 @@ use chumsky::prelude::*;
 #[non_exhaustive]
 pub enum Body {
     /// the template and the declarations of the variables that can be used in the template
-    Function {
-        decls: Vec<Decl>,
-        template: Template,
-    },
+    Function { decls: Decls, template: Template },
 }
 /// the main text
 /// (what is actually used to generate the new strings)
 #[derive(Debug, PartialEq, Clone)]
-struct Template(Vec<TemplatePart>);
+pub struct Template(Vec<TemplatePart>);
 #[derive(Debug, PartialEq, Clone)]
 enum TemplatePart {
     Char(char),
     /// inserted text
     Insert(Value),
 }
+use thiserror::Error;
 // the `TemplatePart` name is really there because there aren't inline enums
 use TemplatePart::*;
+
+#[derive(Debug, PartialEq)]
+pub struct Decls(Vec<Decl>);
+impl Decls {
+    fn has_defined<V: AsRef<Var>>(&self, var: V) -> bool {
+        match var.as_ref() {
+            // TODO: profile this to see if this would be better with map of some sort
+            Ident(var) => self.0.iter().any(|d| match d {
+                Decl::Var(Ident(v)) => v == var,
+                Decl::Var(Ignore) => false,
+            }),
+            Ignore => true,
+        }
+    }
+}
+
 /// a declaration of a variable that can be used in the text of a function
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 enum Decl {
     Var(Var),
 }
+
 #[derive(Debug, Clone, PartialEq)]
-enum Var {
+pub enum Var {
     Ident(String),
     Ignore,
 }
 use Var::*;
+
 #[derive(Debug, PartialEq, Clone)]
 #[non_exhaustive]
-enum Value {
+pub enum Value {
     Var(Var),
+}
+impl AsRef<Var> for &Value {
+    fn as_ref(&self) -> &Var {
+        match self {
+            Value::Var(v) => v,
+        }
+    }
 }
 
 pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
@@ -68,8 +91,33 @@ pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     decls
         .then_ignore(just("->").then(text::newline().or_not()))
         .then(template)
-        .map(|(decls, template)| Body::Function { decls, template })
+        .map(|(decls, template)| Body::Function {
+            decls: Decls(decls),
+            template,
+        })
         .then_ignore(end())
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum VerifyError<'v> {
+    #[error("variable {0:?} is undefined")]
+    Undefined(&'v Value),
+}
+impl Body {
+    pub fn verify(&self) -> Result<(), Vec<VerifyError<'_>>> {
+        let v: Vec<_> = match self {
+            Body::Function { decls, template } => template.0.iter().filter_map(|part| match part {
+                Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
+                _ => None,
+            }),
+        }
+        .collect();
+        if v.is_empty() {
+            Ok(())
+        } else {
+            Err(v)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -89,7 +137,7 @@ mod tests {
     macro_rules! decls {
         ($($decl:expr),*) => {
             Body::Function {
-                decls: vec![$(Decl::Var(ident!($decl))),*],
+                decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
                 template: template![Char('f')],
             }
         };
@@ -119,7 +167,7 @@ mod tests {
         text_only_fn_body_passes,
         "{}->f",
         Body::Function {
-            decls: vec![],
+            decls: Decls(vec![]),
             template: template![Char('f')]
         }
     );
@@ -127,7 +175,7 @@ mod tests {
         new_line_body_passes,
         "{}->\nf",
         Body::Function {
-            decls: vec![],
+            decls: Decls(vec![]),
             template: template![Char('f')]
         }
     );
@@ -135,7 +183,7 @@ mod tests {
         insert_var_only_fn_body_passes,
         "{}->%{foo}",
         Body::Function {
-            decls: vec![],
+            decls: Decls(vec![]),
             template: template![Insert(Value::Var(ident!("foo")))],
         }
     );
@@ -162,7 +210,7 @@ mod tests {
     test_pass!(multiple_template_part_passes, "{}->foo%{foo}b%{foo}bar", {
         let insert = Insert(Value::Var(ident!("foo")));
         Body::Function {
-            decls: vec![],
+            decls: Decls(vec![]),
             template: template![
                 Char('f'),
                 Char('o'),
@@ -180,8 +228,50 @@ mod tests {
         escapes_double_percent,
         "{}->f%%f",
         Body::Function {
-            decls: vec![],
+            decls: Decls(vec![]),
             template: template![Char('f'), Char('%'), Char('f')]
         }
     );
+
+    #[test]
+    fn verifies_char_only_template() {
+        assert!(Body::Function {
+            decls: Decls(vec![]),
+            template: template![Char('f')]
+        }
+        .verify()
+        .is_ok());
+    }
+    #[test]
+    fn verifies_ignore_template() {
+        Body::Function {
+            decls: Decls(vec![]),
+            template: template![Insert(Value::Var(Ignore))],
+        }
+        .verify()
+        .unwrap()
+    }
+
+    #[test]
+    fn verifies_defined_value() {
+        Body::Function {
+            decls: Decls(vec![Decl::Var(ident!("foo"))]),
+            template: template![Insert(Value::Var(ident!("foo")))],
+        }
+        .verify()
+        .unwrap()
+    }
+
+    #[test]
+    fn fails_undefined_value() {
+        assert_eq!(
+            Body::Function {
+                decls: Decls(vec![]),
+                template: template![Insert(Value::Var(ident!("foo")))]
+            }
+            .verify()
+            .unwrap_err(),
+            vec![VerifyError::Undefined(&Value::Var(ident!("foo")))]
+        )
+    }
 }
