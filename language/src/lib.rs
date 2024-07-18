@@ -176,4 +176,12 @@ mod tests {
             ],
         }
     });
+    test_pass!(
+        escapes_double_percent,
+        "{}->f%%f",
+        Body::Function {
+            decls: vec![],
+            template: template![Char('f'), Char('%'), Char('f')]
+        }
+    );
 }
