@@ -12,12 +12,11 @@ pub enum Body {
 }
 /// the main text
 /// (what is actually used to generate the new strings)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Template(Vec<TemplatePart>);
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum TemplatePart {
-    /// regular text. Copied as is, except for `%%`
-    Text(String),
+    Char(char),
     /// inserted text
     Insert(Value),
 }
@@ -35,7 +34,7 @@ enum Var {
     Ignore,
 }
 use Var::*;
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[non_exhaustive]
 enum Value {
     Var(Var),
@@ -56,10 +55,8 @@ pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let value = var.map(Value::Var);
     let insert = value.delimited_by(just("%{"), just("}")).map(Insert);
 
-    let text = choice((just('%').then_ignore(just('%')), any()))
-        .repeated()
-        .at_least(1)
-        .map(|s| Text(s.into_iter().collect()));
+    let escaped = just('%').then_ignore(just('%'));
+    let text = choice((escaped, any())).map(Char);
 
     let template = insert
         .or(text)
@@ -80,14 +77,9 @@ mod tests {
     use super::*;
 
     macro_rules! template {
-        ($($args:expr)*) => {
-            Template(vec![$($args)*])
+        ($($args:expr),*) => {
+            Template(vec![$($args),*])
         }
-    }
-    macro_rules! text {
-        ($str:expr) => {
-            Text($str.to_string())
-        };
     }
     macro_rules! ident {
         ($str:expr) => {
@@ -98,7 +90,7 @@ mod tests {
         ($($decl:expr),*) => {
             Body::Function {
                 decls: vec![$(Decl::Var(ident!($decl))),*],
-                template: template![text!("foo")],
+                template: template![Char('f')],
             }
         };
     }
@@ -125,18 +117,18 @@ mod tests {
     }
     test_pass!(
         text_only_fn_body_passes,
-        "{}->foo",
+        "{}->f",
         Body::Function {
             decls: vec![],
-            template: template![text!("foo")]
+            template: template![Char('f')]
         }
     );
     test_pass!(
         new_line_body_passes,
-        "{}->\nfoo",
+        "{}->\nf",
         Body::Function {
             decls: vec![],
-            template: template![text!("foo")]
+            template: template![Char('f')]
         }
     );
     test_pass!(
@@ -147,24 +139,41 @@ mod tests {
             template: template![Insert(Value::Var(ident!("foo")))],
         }
     );
-    test_pass!(single_decl_passes, "{foo}->\nfoo", decls!["foo"]);
-    test_pass!(single_decl_passes1, "{foo,}->\nfoo", decls!["foo"]);
+    test_pass!(single_decl_passes, "{foo}->\nf", decls!["foo"]);
+    test_pass!(single_decl_passes1, "{foo,}->\nf", decls!["foo"]);
     test_pass!(
         multi_decl_passes,
-        "{foo,bar,baz}->\nfoo",
+        "{foo,bar,baz}->\nf",
         decls!["foo", "bar", "baz"]
     );
     test_pass!(
         multi_decl_passes1,
-        "{foo,bar,baz,}->\nfoo",
+        "{foo,bar,baz,}->\nf",
         decls!["foo", "bar", "baz"]
     );
-    test_pass!(white_space_pass, "{} \n  \t->\nfoo", decls![]);
-    test_pass!(white_space_pass1, "{  }->foo", decls![]);
-    test_pass!(white_space_pass2, "\n\n\t  \n  {}->foo", decls![]);
+    test_pass!(white_space_pass, "{} \n  \t->\nf", decls![]);
+    test_pass!(white_space_pass1, "{  }->f", decls![]);
+    test_pass!(white_space_pass2, "\n\n\t  \n  {}->f", decls![]);
     test_pass!(
         white_space_pass3,
-        "\n\n\t  \n  {  foo, \n\nbar, }  ->foo",
+        "\n\n\t  \n  {  foo, \n\nbar, }  ->f",
         decls!["foo", "bar"]
     );
+    test_pass!(multiple_template_part_passes, "{}->foo%{foo}b%{foo}bar", {
+        let insert = Insert(Value::Var(ident!("foo")));
+        Body::Function {
+            decls: vec![],
+            template: template![
+                Char('f'),
+                Char('o'),
+                Char('o'),
+                insert.clone(),
+                Char('b'),
+                insert,
+                Char('b'),
+                Char('a'),
+                Char('r')
+            ],
+        }
+    });
 }
