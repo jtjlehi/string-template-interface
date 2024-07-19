@@ -1,5 +1,7 @@
 use chumsky::prelude::*;
 
+mod reduce;
+
 /// The file
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
@@ -27,40 +29,58 @@ impl Decls {
     fn has_defined<V: AsRef<Var>>(&self, var: V) -> bool {
         match var.as_ref() {
             // TODO: profile this to see if this would be better with map of some sort
-            Ident(var) => self.0.iter().any(|d| match d {
-                Decl::Var(Ident(v)) => v == var,
-                Decl::Var(Ignore) => false,
-            }),
+            Ident(var) => self.0.iter().any(|d| d.is_var(var)),
             Ignore => true,
+        }
+    }
+    fn get_defined<V: AsRef<Var>>(&self, var: V) -> Option<&Decl> {
+        // self.get_defined(var).is_some()
+        match var.as_ref() {
+            // TODO: profile this to see if this would be better with map of some sort
+            Ident(var) => self.0.iter().find(|d| d.is_var(var)),
+            Ignore => None,
         }
     }
 }
 
 /// a declaration of a variable that can be used in the text of a function
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 enum Decl {
     Var(Var),
 }
+impl Decl {
+    fn is_var(&self, var: &str) -> bool {
+        match self {
+            Decl::Var(Ident(v)) => v == var,
+            Decl::Var(Ignore) => false,
+        }
+    }
+}
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Var {
     Ident(String),
     Ignore,
 }
 use Var::*;
-
-#[derive(Debug, PartialEq, Clone)]
-#[non_exhaustive]
-pub enum Value {
-    Var(Var),
-}
 impl AsRef<Var> for &Value {
     fn as_ref(&self) -> &Var {
         match self {
             Value::Var(v) => v,
         }
     }
+}
+impl AsRef<Var> for &String {
+    fn as_ref(&self) -> &Var {
+        todo!()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
+pub enum Value {
+    Var(Var),
 }
 
 pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
