@@ -1,5 +1,8 @@
 use chumsky::prelude::*;
 
+use crate::errors::VerifyError;
+
+mod errors;
 mod reduce;
 
 /// The file
@@ -19,7 +22,6 @@ enum TemplatePart {
     /// inserted text
     Insert(Value),
 }
-use thiserror::Error;
 // the `TemplatePart` name is really there because there aren't inline enums
 use TemplatePart::*;
 
@@ -118,13 +120,8 @@ pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
         .then_ignore(end())
 }
 
-#[derive(Error, Debug, PartialEq)]
-pub enum VerifyError<'v> {
-    #[error("variable {0:?} is undefined")]
-    Undefined(&'v Value),
-}
 impl Body {
-    pub fn verify(&self) -> Result<(), Vec<VerifyError<'_>>> {
+    pub fn verify(&self) -> Result<(), VerifyError<'_>> {
         let v: Vec<_> = match self {
             Body::Function { decls, template } => template.0.iter().filter_map(|part| match part {
                 Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
@@ -135,7 +132,7 @@ impl Body {
         if v.is_empty() {
             Ok(())
         } else {
-            Err(v)
+            Err(VerifyError::Errors(v))
         }
     }
 }
@@ -291,7 +288,7 @@ mod tests {
             }
             .verify()
             .unwrap_err(),
-            vec![VerifyError::Undefined(&Value::Var(ident!("foo")))]
+            VerifyError::Errors(vec![VerifyError::Undefined(&Value::Var(ident!("foo")))])
         )
     }
 }
