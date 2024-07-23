@@ -27,8 +27,10 @@ impl Inputs {
 }
 
 /// combination of `Inputs` and `Decls`
+#[derive(PartialEq, Debug)]
 struct Values<'decls, 'inputs>(HashMap<&'decls Var, &'inputs str>);
 
+#[derive(PartialEq, Debug)]
 struct VerifiedTemplate<'body, 'inputs> {
     values: Values<'body, 'inputs>,
     template: &'body Template,
@@ -77,11 +79,20 @@ mod test {
     }
     macro_rules! decls {
         ($($decl:expr),*) => {
+            body_function!(decls: [$($decl),*]; template: [Char('f')])
+            // Body::Function {
+            //     decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
+            //     template: template![Char('f')],
+            // }
+        };
+    }
+    macro_rules! body_function {
+        (decls: [$($decl:expr),*]; template: $template:expr) => {
             Body::Function {
                 decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
-                template: template![Char('f')],
+                template: $template,
             }
-        };
+        }
     }
 
     #[test]
@@ -121,5 +132,51 @@ mod test {
             .reduce(),
             "abfooc"
         );
+    }
+
+    #[test]
+    fn creates_verified_template() {
+        let template = template![
+            Insert(Value::Var(ident!("foo"))),
+            Insert(Value::Var(ident!("bar")))
+        ];
+        assert_eq!(
+            VerifiedTemplate::try_from_body_inputs(
+                &body_function!(
+                    decls: ["foo", "bar"];
+                    template: template.clone()
+                ),
+                &Inputs(HashMap::from([
+                    ("foo".to_string(), "ot".to_string()),
+                    ("bar".to_string(), " and hand".to_string())
+                ]))
+            )
+            .unwrap(),
+            VerifiedTemplate {
+                values: Values(HashMap::from([
+                    (&ident!("foo"), "ot"),
+                    (&ident!("bar"), " and hand")
+                ])),
+                template: &template,
+            }
+        )
+    }
+    #[test]
+    fn fails_bad_values() {
+        let template = template![
+            Insert(Value::Var(ident!("foo"))),
+            Insert(Value::Var(ident!("bar")))
+        ];
+        assert_eq!(
+            VerifiedTemplate::try_from_body_inputs(
+                &body_function!(
+                    decls: ["foo", "bar"];
+                    template: template.clone()
+                ),
+                &Inputs(HashMap::from([("foo".to_string(), "ot".to_string()),]))
+            )
+            .unwrap_err(),
+            VerifyError::MissingDecl
+        )
     }
 }
