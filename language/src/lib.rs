@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use crate::errors::VerifyError;
 
 mod errors;
-mod reduce;
+pub mod reduce;
 
 /// The file
 #[derive(Debug, PartialEq)]
@@ -33,14 +33,6 @@ impl Decls {
             // TODO: profile this to see if this would be better with map of some sort
             Ident(var) => self.0.iter().any(|d| d.is_var(var)),
             Ignore => true,
-        }
-    }
-    fn get_defined<V: AsRef<Var>>(&self, var: V) -> Option<&Decl> {
-        // self.get_defined(var).is_some()
-        match var.as_ref() {
-            // TODO: profile this to see if this would be better with map of some sort
-            Ident(var) => self.0.iter().find(|d| d.is_var(var)),
-            Ignore => None,
         }
     }
 }

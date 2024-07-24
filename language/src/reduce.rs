@@ -1,10 +1,13 @@
 use crate::{errors::VerifyError, Body, Decl, Decls, Template, TemplatePart::*, Value, Var};
 use std::collections::HashMap;
 
-/// key value pairs input to generate a concrete instance of the template
-pub struct Inputs(HashMap<String, String>);
-
-impl Inputs {
+pub trait Inputs {
+    fn try_into_values<'decls, 'inputs>(
+        &'inputs self,
+        decls: &'decls Decls,
+    ) -> Result<Values<'decls, 'inputs>, VerifyError>;
+}
+impl Inputs for HashMap<String, String> {
     fn try_into_values<'decls, 'inputs>(
         &'inputs self,
         decls: &'decls Decls,
@@ -14,8 +17,7 @@ impl Inputs {
             .iter()
             .filter_map(|decl| match decl {
                 Decl::Var(v @ Var::Ident(s)) => Some(
-                    self.0
-                        .get(s)
+                    self.get(s)
                         .map(|value| (v, value.as_str()))
                         .ok_or(VerifyError::MissingDecl),
                 ),
@@ -28,18 +30,18 @@ impl Inputs {
 
 /// combination of `Inputs` and `Decls`
 #[derive(PartialEq, Debug)]
-struct Values<'decls, 'inputs>(HashMap<&'decls Var, &'inputs str>);
+pub struct Values<'decls, 'inputs>(HashMap<&'decls Var, &'inputs str>);
 
 #[derive(PartialEq, Debug)]
-struct VerifiedTemplate<'body, 'inputs> {
+pub struct VerifiedTemplate<'body, 'inputs> {
     values: Values<'body, 'inputs>,
     template: &'body Template,
 }
 
 impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
-    pub fn try_from_body_inputs(
+    pub fn try_from_body_inputs<I: Inputs>(
         body: &'body Body,
-        inputs: &'inputs Inputs,
+        inputs: &'inputs I,
     ) -> Result<Self, VerifyError<'body>> {
         body.verify()?;
         let (template, decls) = match body {
@@ -65,7 +67,6 @@ impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::TemplatePart::*;
 
     macro_rules! template {
         ($($args:expr),*) => {
@@ -146,10 +147,10 @@ mod test {
                     decls: ["foo", "bar"];
                     template: template.clone()
                 ),
-                &Inputs(HashMap::from([
+                &HashMap::from([
                     ("foo".to_string(), "ot".to_string()),
                     ("bar".to_string(), " and hand".to_string())
-                ]))
+                ])
             )
             .unwrap(),
             VerifiedTemplate {
@@ -173,7 +174,7 @@ mod test {
                     decls: ["foo", "bar"];
                     template: template.clone()
                 ),
-                &Inputs(HashMap::from([("foo".to_string(), "ot".to_string()),]))
+                &HashMap::from([("foo".to_string(), "ot".to_string()),])
             )
             .unwrap_err(),
             VerifyError::MissingDecl
