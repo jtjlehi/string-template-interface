@@ -38,6 +38,35 @@ pub struct VerifiedTemplate<'body, 'inputs> {
     template: &'body Template,
 }
 
+impl Decls {
+    fn has_defined<V: AsRef<Var>>(&self, var: V) -> bool {
+        match var.as_ref() {
+            Var::Ident(var) => self.0.iter().any(|d| match &d {
+                Decl::Var(Var::Ident(v)) => v == var,
+                Decl::Var(_) => false,
+            }),
+            Var::Ignore => true,
+        }
+    }
+}
+
+impl Body {
+    pub fn verify(&self) -> Result<(), VerifyError<'_>> {
+        let v: Vec<_> = match self {
+            Body::Function { decls, template } => template.0.iter().filter_map(|part| match part {
+                Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
+                _ => None,
+            }),
+        }
+        .collect();
+        if v.is_empty() {
+            Ok(())
+        } else {
+            Err(VerifyError::Errors(v))
+        }
+    }
+}
+
 impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
     pub fn try_from_body_inputs<I: Inputs>(
         body: &'body Body,
@@ -67,33 +96,48 @@ impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tests_macros::*;
 
-    macro_rules! template {
-        ($($args:expr),*) => {
-            Template(vec![$($args),*])
+    #[test]
+    fn verifies_char_only_template() {
+        assert!(Body::Function {
+            decls: Decls(vec![]),
+            template: template![Char('f')]
         }
+        .verify()
+        .is_ok());
     }
-    macro_rules! ident {
-        ($str:expr) => {
-            Var::Ident($str.to_string())
-        };
+    #[test]
+    fn verifies_ignore_template() {
+        Body::Function {
+            decls: Decls(vec![]),
+            template: template![Insert(Value::Var(crate::Var::Ignore))],
+        }
+        .verify()
+        .unwrap()
     }
-    macro_rules! decls {
-        ($($decl:expr),*) => {
-            body_function!(decls: [$($decl),*]; template: [Char('f')])
-            // Body::Function {
-            //     decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
-            //     template: template![Char('f')],
-            // }
-        };
+
+    #[test]
+    fn verifies_defined_value() {
+        Body::Function {
+            decls: Decls(vec![Decl::Var(ident!("foo"))]),
+            template: template![Insert(Value::Var(ident!("foo")))],
+        }
+        .verify()
+        .unwrap()
     }
-    macro_rules! body_function {
-        (decls: [$($decl:expr),*]; template: $template:expr) => {
+
+    #[test]
+    fn fails_undefined_value() {
+        assert_eq!(
             Body::Function {
-                decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
-                template: $template,
+                decls: Decls(vec![]),
+                template: template![Insert(Value::Var(ident!("foo")))]
             }
-        }
+            .verify()
+            .unwrap_err(),
+            VerifyError::Errors(vec![VerifyError::Undefined(&Value::Var(ident!("foo")))])
+        )
     }
 
     #[test]
