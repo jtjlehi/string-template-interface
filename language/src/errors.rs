@@ -11,3 +11,9 @@ pub enum VerifyError<'v> {
     #[error("")]
     Errors(Vec<VerifyError<'v>>),
 }
+
+impl<'v> FromIterator<VerifyError<'v>> for VerifyError<'v> {
+    fn from_iter<T: IntoIterator<Item = VerifyError<'v>>>(iter: T) -> Self {
+        VerifyError::Errors(iter.into_iter().collect())
+    }
+}

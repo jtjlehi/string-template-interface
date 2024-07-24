@@ -51,18 +51,22 @@ impl Decls {
 }
 
 impl Body {
-    pub fn verify(&self) -> Result<(), VerifyError<'_>> {
-        let v: Vec<_> = match self {
-            Body::Function { decls, template } => template.0.iter().filter_map(|part| match part {
-                Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
-                _ => None,
-            }),
-        }
-        .collect();
-        if v.is_empty() {
-            Ok(())
-        } else {
-            Err(VerifyError::Errors(v))
+    fn verify(&self) -> Result<(&Template, &Decls), VerifyError<'_>> {
+        match self {
+            Body::Function { template, decls } => {
+                let v: Vec<_> = template
+                    .0
+                    .iter()
+                    .filter_map(|part| match part {
+                        Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
+                        _ => None,
+                    })
+                    .collect();
+                if !v.is_empty() {
+                    Err(VerifyError::Errors(v))?;
+                };
+                Ok((&template, &decls))
+            }
         }
     }
 }
@@ -72,10 +76,7 @@ impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
         body: &'body Body,
         inputs: &'inputs I,
     ) -> Result<Self, VerifyError<'body>> {
-        body.verify()?;
-        let (template, decls) = match body {
-            Body::Function { template, decls } => (template, decls),
-        };
+        let (template, decls) = body.verify()?;
         let values = inputs.try_into_values(decls)?;
         Ok(Self { values, template })
     }
@@ -114,7 +115,7 @@ mod test {
             template: template![Insert(Value::Var(crate::Var::Ignore))],
         }
         .verify()
-        .unwrap()
+        .unwrap();
     }
 
     #[test]
@@ -124,7 +125,7 @@ mod test {
             template: template![Insert(Value::Var(ident!("foo")))],
         }
         .verify()
-        .unwrap()
+        .unwrap();
     }
 
     #[test]
