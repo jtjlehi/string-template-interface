@@ -263,10 +263,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "string_template_interface"
+name = "sti"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "language",
  "serde",
  "serde_json",
 ]
