@@ -51,14 +51,16 @@ impl Decls {
 }
 
 impl Body {
-    fn verify(&self) -> Result<(&Template, &Decls), VerifyError<'_>> {
+    fn verify(&self) -> Result<(&Template, &Decls), VerifyError> {
         match self {
             Body::Function { template, decls } => {
                 let v: Vec<_> = template
                     .0
                     .iter()
                     .filter_map(|part| match part {
-                        Insert(v) if !decls.has_defined(v) => Some(VerifyError::Undefined(v)),
+                        Insert(v) if !decls.has_defined(v) => {
+                            Some(VerifyError::Undefined(v.clone()))
+                        }
                         _ => None,
                     })
                     .collect();
@@ -75,7 +77,7 @@ impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
     pub fn try_from_body_inputs<I: Inputs>(
         body: &'body Body,
         inputs: &'inputs I,
-    ) -> Result<Self, VerifyError<'body>> {
+    ) -> Result<Self, VerifyError> {
         let (template, decls) = body.verify()?;
         let values = inputs.try_into_values(decls)?;
         Ok(Self { values, template })
@@ -137,7 +139,7 @@ mod test {
             }
             .verify()
             .unwrap_err(),
-            VerifyError::Errors(vec![VerifyError::Undefined(&Value::Var(ident!("foo")))])
+            VerifyError::Errors(vec![VerifyError::Undefined(Value::Var(ident!("foo")))])
         )
     }
 

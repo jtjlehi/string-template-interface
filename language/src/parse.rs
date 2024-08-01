@@ -36,8 +36,10 @@ fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
         })
         .then_ignore(end())
 }
-pub fn parse(s: impl AsRef<str>) -> Result<Body, Vec<Simple<char>>> {
-    parser().parse(s.as_ref())
+pub(super) fn parse<'body>(s: &'body str) -> Result<Body, crate::errors::VerifyError> {
+    parser()
+        .parse(s)
+        .map_err(|errs| errs.into_iter().map(Into::into).collect())
 }
 
 #[cfg(test)]

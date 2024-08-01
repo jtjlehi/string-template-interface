@@ -1,19 +1,28 @@
+use chumsky::prelude::Simple;
 use thiserror::Error;
 
 use crate::Value;
 
 #[derive(Error, Debug, PartialEq)]
-pub enum VerifyError<'v> {
+pub enum VerifyError {
+    #[error("")]
+    ParseError(Simple<char>),
     #[error("variable {0:?} is undefined")]
-    Undefined(&'v Value),
+    Undefined(Value),
     #[error("")]
     MissingDecl,
     #[error("")]
-    Errors(Vec<VerifyError<'v>>),
+    Errors(Vec<VerifyError>),
 }
 
-impl<'v> FromIterator<VerifyError<'v>> for VerifyError<'v> {
-    fn from_iter<T: IntoIterator<Item = VerifyError<'v>>>(iter: T) -> Self {
+impl From<Simple<char>> for VerifyError {
+    fn from(value: Simple<char>) -> Self {
+        Self::ParseError(value)
+    }
+}
+
+impl<'v> FromIterator<VerifyError> for VerifyError {
+    fn from_iter<T: IntoIterator<Item = VerifyError>>(iter: T) -> Self {
         VerifyError::Errors(iter.into_iter().collect())
     }
 }

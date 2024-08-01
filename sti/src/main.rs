@@ -12,11 +12,7 @@ fn main() -> std::io::Result<()> {
     let values: std::collections::HashMap<String, String> =
         serde_json::from_reader(std::fs::File::open(args.values)?).unwrap();
     let str = std::fs::read_to_string(args.file)?;
-
-    let body = language::parse::parse(str).unwrap();
-    let output = language::reduce::VerifiedTemplate::try_from_body_inputs(&body, &values)
-        .unwrap()
-        .reduce();
+    let output = language::eval(&str, &values).unwrap();
     println!("{output}");
     Ok(())
 }
