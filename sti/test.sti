@@ -1,0 +1,7 @@
+{
+foo,
+bar,
+} ->
+%{foo} %{bar}
+this is foo: %{foo}
+this is bar: %{bar}
