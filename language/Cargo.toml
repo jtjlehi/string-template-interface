@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 chumsky = "0.9.3"
 thiserror = "1.0.63"
+serde = { version = "1.0.204", features = ["serde_derive"], optional = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]

@@ -2,7 +2,7 @@ use chumsky::prelude::*;
 
 use crate::{Body, Decl, Decls, Template, TemplatePart::*, Value, Var};
 
-pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
+fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let var = just('_').to(Var::Ignore).or(text::ident().map(Var::Ident));
 
     let decl = var.clone().map(Decl::Var).padded();
@@ -35,6 +35,9 @@ pub fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
             template,
         })
         .then_ignore(end())
+}
+pub fn parse(s: impl AsRef<str>) -> Result<Body, Vec<Simple<char>>> {
+    parser().parse(s.as_ref())
 }
 
 #[cfg(test)]

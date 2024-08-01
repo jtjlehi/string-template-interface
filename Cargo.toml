@@ -1,5 +1,6 @@
 [workspace]
 members = ["language", "sti"]
+resolver = "2"
 
 [workspace.package]
 name = "string_template_interface"
