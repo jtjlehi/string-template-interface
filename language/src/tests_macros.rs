@@ -6,13 +6,13 @@ macro_rules! template {
 pub(crate) use template;
 macro_rules! ident {
     ($str:expr) => {
-        crate::Var::Ident($str.to_string())
+        crate::data::Var::Ident($str.to_string())
     };
 }
 pub(crate) use ident;
 macro_rules! decls {
     ($($decl:expr),*) => {
-        crate::Body::Function {
+        crate::data::Body::Function {
             decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
             template: template![Char('f')],
         }

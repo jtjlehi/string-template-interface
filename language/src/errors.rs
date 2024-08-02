@@ -1,7 +1,7 @@
 use chumsky::prelude::Simple;
 use thiserror::Error;
 
-use crate::Value;
+use crate::data::Value;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum VerifyError {

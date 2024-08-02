@@ -1,6 +1,7 @@
 use chumsky::prelude::*;
 
-use crate::{Body, Decl, Decls, Template, TemplatePart::*, Value, Var};
+use crate::data::*;
+use TemplatePart::*;
 
 fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let var = just('_').to(Var::Ignore).or(text::ident().map(Var::Ident));

@@ -1,7 +1,6 @@
 mod data;
 mod errors;
 mod parse;
-use data::{Body, Decl, Decls, Template, TemplatePart, Value, Var};
 
 pub mod reduce;
 pub use errors::VerifyError;

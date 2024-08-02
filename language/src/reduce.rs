@@ -1,4 +1,4 @@
-use crate::{errors::VerifyError, Body, Decl, Decls, Template, TemplatePart::*, Value, Var};
+use crate::{data::TemplatePart::*, data::*, errors::VerifyError};
 use std::collections::HashMap;
 
 pub trait Inputs {
@@ -114,7 +114,7 @@ mod test {
     fn verifies_ignore_template() {
         Body::Function {
             decls: Decls(vec![]),
-            template: template![Insert(Value::Var(crate::Var::Ignore))],
+            template: template![Insert(Value::Var(crate::data::Var::Ignore))],
         }
         .verify()
         .unwrap();
