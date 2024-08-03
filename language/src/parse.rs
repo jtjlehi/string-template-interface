@@ -37,7 +37,7 @@ fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
         })
         .then_ignore(end())
 }
-pub(super) fn parse<'body>(s: &'body str) -> Result<Body, crate::errors::VerifyError> {
+pub(super) fn parse(s: &str) -> Result<Body, crate::errors::VerifyError> {
     parser()
         .parse(s)
         .map_err(|errs| errs.into_iter().map(Into::into).collect())

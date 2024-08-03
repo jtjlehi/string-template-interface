@@ -19,7 +19,7 @@ impl From<Simple<char>> for VerifyError {
     }
 }
 
-impl<'v> FromIterator<VerifyError> for VerifyError {
+impl FromIterator<VerifyError> for VerifyError {
     fn from_iter<T: IntoIterator<Item = VerifyError>>(iter: T) -> Self {
         VerifyError::Errors(iter.into_iter().collect())
     }

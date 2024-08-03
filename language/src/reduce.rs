@@ -2,16 +2,10 @@ use crate::{data::TemplatePart::*, data::*, errors::VerifyError};
 use std::collections::HashMap;
 
 pub trait Inputs {
-    fn try_into_values<'decls, 'inputs>(
-        &'inputs self,
-        decls: &'decls Decls,
-    ) -> Result<Values<'decls>, VerifyError>;
+    fn try_into_values<'decls>(&self, decls: &'decls Decls) -> Result<Values<'decls>, VerifyError>;
 }
 impl Inputs for HashMap<String, String> {
-    fn try_into_values<'decls, 'inputs>(
-        &'inputs self,
-        decls: &'decls Decls,
-    ) -> Result<Values<'decls>, VerifyError> {
+    fn try_into_values<'decls>(&self, decls: &'decls Decls) -> Result<Values<'decls>, VerifyError> {
         let map = decls.0.iter().filter_map(|decl| match &decl.var {
             Var::Ignore => None,
             Var::Ident(s) => Some(
