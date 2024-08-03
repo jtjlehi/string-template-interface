@@ -3,7 +3,6 @@ members = ["language", "sti"]
 resolver = "2"
 
 [workspace.package]
-name = "string_template_interface"
 version = "0.1.0"
 edition = "2021"
 
