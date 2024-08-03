@@ -13,7 +13,7 @@ pub(crate) use ident;
 macro_rules! decls {
     ($($decl:expr),*) => {
         crate::data::Body::Function {
-            decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
+            decls: Decls(vec![$(Decl{ var: ident!($decl), default: None }),*]),
             template: template![Char('f')],
         }
     };
@@ -22,7 +22,7 @@ pub(crate) use decls;
 macro_rules! body_function {
     (decls: [$($decl:expr),*]; template: $template:expr) => {
         Body::Function {
-            decls: Decls(vec![$(Decl::Var(ident!($decl))),*]),
+            decls: Decls(vec![$(Decl{ var: ident!($decl), default: None }),*]),
             template: $template,
         }
     }

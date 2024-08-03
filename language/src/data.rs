@@ -13,7 +13,7 @@ pub struct Template(pub(crate) Vec<TemplatePart>);
 pub(crate) enum TemplatePart {
     Char(char),
     /// inserted text
-    Insert(Value),
+    Insert(TemplateValue),
 }
 
 #[derive(Debug, PartialEq)]
@@ -22,8 +22,18 @@ pub struct Decls(pub(crate) Vec<Decl>);
 /// a declaration of a variable that can be used in the text of a function
 #[derive(Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub(crate) enum Decl {
-    Var(Var),
+pub(crate) struct Decl {
+    pub(crate) var: Var,
+    pub(crate) default: Option<DeclValue>,
+}
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum DeclValue {
+    Str(String),
+}
+impl<S: Into<String>> From<S> for DeclValue {
+    fn from(value: S) -> Self {
+        DeclValue::Str(value.into())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -31,21 +41,16 @@ pub enum Var {
     Ident(String),
     Ignore,
 }
-impl AsRef<Var> for &Value {
+impl AsRef<Var> for &TemplateValue {
     fn as_ref(&self) -> &Var {
         match self {
-            Value::Var(v) => v,
+            TemplateValue::Var(v) => v,
         }
     }
 }
-impl AsRef<Var> for &String {
-    fn as_ref(&self) -> &Var {
-        todo!()
-    }
-}
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 #[non_exhaustive]
-pub enum Value {
+pub enum TemplateValue {
     Var(Var),
 }

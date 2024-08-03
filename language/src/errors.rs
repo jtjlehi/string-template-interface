@@ -1,14 +1,12 @@
 use chumsky::prelude::Simple;
 use thiserror::Error;
 
-use crate::data::Value;
-
 #[derive(Error, Debug, PartialEq)]
 pub enum VerifyError {
     #[error("")]
     ParseError(Simple<char>),
     #[error("variable {0:?} is undefined")]
-    Undefined(Value),
+    Undefined(crate::data::TemplateValue),
     #[error("")]
     MissingDecl,
     #[error("")]

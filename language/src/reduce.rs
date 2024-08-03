@@ -5,45 +5,43 @@ pub trait Inputs {
     fn try_into_values<'decls, 'inputs>(
         &'inputs self,
         decls: &'decls Decls,
-    ) -> Result<Values<'decls, 'inputs>, VerifyError>;
+    ) -> Result<Values<'decls>, VerifyError>;
 }
 impl Inputs for HashMap<String, String> {
     fn try_into_values<'decls, 'inputs>(
         &'inputs self,
         decls: &'decls Decls,
-    ) -> Result<Values<'decls, 'inputs>, VerifyError> {
-        let map: HashMap<_, _> = decls
-            .0
-            .iter()
-            .filter_map(|decl| match decl {
-                Decl::Var(v @ Var::Ident(s)) => Some(
-                    self.get(s)
-                        .map(|value| (v, value.as_str()))
-                        .ok_or(VerifyError::MissingDecl),
-                ),
-                Decl::Var(Var::Ignore) => None,
-            })
-            .collect::<Result<_, _>>()?;
-        Ok(Values(map))
+    ) -> Result<Values<'decls>, VerifyError> {
+        let map = decls.0.iter().filter_map(|decl| match &decl.var {
+            Var::Ignore => None,
+            Var::Ident(s) => Some(
+                self.get(s)
+                    .map(DeclValue::from)
+                    .or(decl.default.clone())
+                    .map(|value| (&decl.var, value))
+                    .ok_or(VerifyError::MissingDecl),
+            ),
+        });
+        Ok(Values(map.collect::<Result<_, _>>()?))
     }
 }
 
 /// combination of `Inputs` and `Decls`
 #[derive(PartialEq, Debug)]
-pub struct Values<'decls, 'inputs>(HashMap<&'decls Var, &'inputs str>);
+pub struct Values<'decls>(HashMap<&'decls Var, DeclValue>);
 
 #[derive(PartialEq, Debug)]
-pub struct VerifiedTemplate<'body, 'inputs> {
-    values: Values<'body, 'inputs>,
+pub struct VerifiedTemplate<'body> {
+    values: Values<'body>,
     template: &'body Template,
 }
 
 impl Decls {
     fn has_defined<V: AsRef<Var>>(&self, var: V) -> bool {
         match var.as_ref() {
-            Var::Ident(var) => self.0.iter().any(|d| match &d {
-                Decl::Var(Var::Ident(v)) => v == var,
-                Decl::Var(_) => false,
+            Var::Ident(var) => self.0.iter().any(|d| match &d.var {
+                Var::Ident(v) => v == var,
+                Var::Ignore => false,
             }),
             Var::Ignore => true,
         }
@@ -73,7 +71,7 @@ impl Body {
     }
 }
 
-impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
+impl<'body, 'inputs: 'body> VerifiedTemplate<'body> {
     pub fn try_from_body_inputs<I: Inputs>(
         body: &'body Body,
         inputs: &'inputs I,
@@ -90,7 +88,9 @@ impl<'body, 'inputs: 'body> VerifiedTemplate<'body, 'inputs> {
             .flat_map(|x| match x {
                 Char(c) => vec![*c],
                 // unwrap is safe since verified template proves it is
-                Insert(Value::Var(v)) => self.values.0.get(v).unwrap().chars().collect::<Vec<_>>(),
+                Insert(TemplateValue::Var(v)) => match self.values.0.get(v).unwrap() {
+                    DeclValue::Str(s) => s.chars().collect(),
+                },
             })
             .collect()
     }
@@ -114,7 +114,7 @@ mod test {
     fn verifies_ignore_template() {
         Body::Function {
             decls: Decls(vec![]),
-            template: template![Insert(Value::Var(crate::data::Var::Ignore))],
+            template: template![Insert(TemplateValue::Var(crate::data::Var::Ignore))],
         }
         .verify()
         .unwrap();
@@ -123,8 +123,11 @@ mod test {
     #[test]
     fn verifies_defined_value() {
         Body::Function {
-            decls: Decls(vec![Decl::Var(ident!("foo"))]),
-            template: template![Insert(Value::Var(ident!("foo")))],
+            decls: Decls(vec![Decl {
+                var: ident!("foo"),
+                default: None,
+            }]),
+            template: template![Insert(TemplateValue::Var(ident!("foo")))],
         }
         .verify()
         .unwrap();
@@ -135,11 +138,13 @@ mod test {
         assert_eq!(
             Body::Function {
                 decls: Decls(vec![]),
-                template: template![Insert(Value::Var(ident!("foo")))]
+                template: template![Insert(TemplateValue::Var(ident!("foo")))]
             }
             .verify()
             .unwrap_err(),
-            VerifyError::Errors(vec![VerifyError::Undefined(Value::Var(ident!("foo")))])
+            VerifyError::Errors(vec![VerifyError::Undefined(TemplateValue::Var(ident!(
+                "foo"
+            )))])
         )
     }
 
@@ -169,11 +174,11 @@ mod test {
     fn verified_template_reduces2() {
         assert_eq!(
             VerifiedTemplate {
-                values: Values(HashMap::from([(&ident!("var"), "foo")])),
+                values: Values(HashMap::from([(&ident!("var"), "foo".into())])),
                 template: &template![
                     Char('a'),
                     Char('b'),
-                    Insert(Value::Var(ident!("var"))),
+                    Insert(TemplateValue::Var(ident!("var"))),
                     Char('c')
                 ],
             }
@@ -185,8 +190,8 @@ mod test {
     #[test]
     fn creates_verified_template() {
         let template = template![
-            Insert(Value::Var(ident!("foo"))),
-            Insert(Value::Var(ident!("bar")))
+            Insert(TemplateValue::Var(ident!("foo"))),
+            Insert(TemplateValue::Var(ident!("bar")))
         ];
         assert_eq!(
             VerifiedTemplate::try_from_body_inputs(
@@ -202,8 +207,8 @@ mod test {
             .unwrap(),
             VerifiedTemplate {
                 values: Values(HashMap::from([
-                    (&ident!("foo"), "ot"),
-                    (&ident!("bar"), " and hand")
+                    (&ident!("foo"), "ot".into()),
+                    (&ident!("bar"), (" and hand".into()))
                 ])),
                 template: &template,
             }
@@ -212,8 +217,8 @@ mod test {
     #[test]
     fn fails_bad_values() {
         let template = template![
-            Insert(Value::Var(ident!("foo"))),
-            Insert(Value::Var(ident!("bar")))
+            Insert(TemplateValue::Var(ident!("foo"))),
+            Insert(TemplateValue::Var(ident!("bar")))
         ];
         assert_eq!(
             VerifiedTemplate::try_from_body_inputs(

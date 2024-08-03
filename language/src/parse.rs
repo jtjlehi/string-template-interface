@@ -6,7 +6,7 @@ use TemplatePart::*;
 fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let var = just('_').to(Var::Ignore).or(text::ident().map(Var::Ident));
 
-    let decl = var.clone().map(Decl::Var).padded();
+    let decl = var.clone().map(|var| Decl { var, default: None }).padded();
     let decls = decl
         .clone()
         .then_ignore(just(','))
@@ -15,7 +15,7 @@ fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
         .delimited_by(just('{').padded(), just('}').padded())
         .padded();
 
-    let value = var.map(Value::Var);
+    let value = var.map(TemplateValue::Var);
     let insert = value.delimited_by(just("%{"), just("}")).map(Insert);
 
     let escaped = just('%').then_ignore(just('%'));
@@ -90,7 +90,7 @@ mod test {
         "{}->%{foo}",
         Body::Function {
             decls: Decls(vec![]),
-            template: template![Insert(Value::Var(ident!("foo")))],
+            template: template![Insert(TemplateValue::Var(ident!("foo")))],
         }
     );
     test_pass!(single_decl_passes, "{foo}->\nf", decls!["foo"]);
@@ -114,7 +114,7 @@ mod test {
         decls!["foo", "bar"]
     );
     test_pass!(multiple_template_part_passes, "{}->foo%{foo}b%{foo}bar", {
-        let insert = Insert(Value::Var(ident!("foo")));
+        let insert = Insert(TemplateValue::Var(ident!("foo")));
         Body::Function {
             decls: Decls(vec![]),
             template: template![
