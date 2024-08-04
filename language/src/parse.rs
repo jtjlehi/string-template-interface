@@ -6,7 +6,17 @@ use TemplatePart::*;
 fn parser() -> impl text::TextParser<char, Body, Error = Simple<char>> {
     let var = just('_').to(Var::Ignore).or(text::ident().map(Var::Ident));
 
-    let decl = var.clone().map(|var| Decl { var, default: None }).padded();
+    let str_value = just::<_, _, Simple<char>>('"')
+        .ignore_then(none_of("\"").repeated().collect::<String>())
+        .then_ignore(just('"'))
+        .map(DeclValue::Str)
+        .padded();
+    let default_val = just('?').ignore_then(str_value).or_not().padded();
+    let decl = var
+        .clone()
+        .then(default_val)
+        .map(|(var, default)| Decl { var, default })
+        .padded();
     let decls = decl
         .clone()
         .then_ignore(just(','))
@@ -95,6 +105,28 @@ mod test {
     );
     test_pass!(single_decl_passes, "{foo}->\nf", decls!["foo"]);
     test_pass!(single_decl_passes1, "{foo,}->\nf", decls!["foo"]);
+    test_pass!(
+        default_str_decl,
+        "{foo ? \"\"}->f",
+        Body::Function {
+            decls: Decls(vec![Decl {
+                var: Var::Ident("foo".to_string()),
+                default: Some(DeclValue::Str(String::new()))
+            }]),
+            template: template![Char('f')],
+        }
+    );
+    test_pass!(
+        default_str_decl1,
+        "{foo ? \"this is my string\"}->f",
+        Body::Function {
+            decls: Decls(vec![Decl {
+                var: Var::Ident("foo".to_string()),
+                default: Some(DeclValue::Str("this is my string".to_string()))
+            }]),
+            template: template![Char('f')],
+        }
+    );
     test_pass!(
         multi_decl_passes,
         "{foo,bar,baz}->\nf",

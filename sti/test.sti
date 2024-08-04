@@ -1,7 +1,9 @@
 {
 foo,
 bar,
+baz ? "hi"
 } ->
 %{foo} %{bar}
 this is foo: %{foo}
 this is bar: %{bar}
+this is baz: %{baz}
