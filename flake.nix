@@ -21,5 +21,17 @@
       defaultPackage = naersk'.buildPackage {
         src = ./.;
       };
+      devShells = {
+        treeSitterDev = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [
+            nodejs_latest
+            tree-sitter
+            clang
+          ];
+          profile = /* bash */ ''
+            export npm_config_build_from_source=true
+          '';
+        };
+      };
     });
 }
